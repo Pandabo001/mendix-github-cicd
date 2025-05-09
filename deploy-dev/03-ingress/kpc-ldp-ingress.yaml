@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ldp-logistics-ingress
+  namespace: mendix
+  annotations:
+    # Use NGINX as Ingress Controller
+    kubernetes.io/ingress.class: nginx
+    # Allow large file upload
+    nginx.ingress.kubernetes.io/proxy-body-size: 1g
+    # Increase timeout in sec if need be
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    # Sticky Session Cookie
+    nginx.ingress.kubernetes.io/affinity: cookie
+    nginx.ingress.kubernetes.io/affinity-mode: persistent
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: kpc-ldp-uat.kingpower.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: kpc-ldp-mx-scheduler-service
+            port:
+              number: 8080
+  # tls:
+  # - hosts:
+  #   - kpc-demo-app.kingpower.com
+  #   secretName: kpc-demo-app-tls-secret

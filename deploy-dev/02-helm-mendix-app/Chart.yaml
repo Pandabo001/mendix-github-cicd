@@ -1,0 +1,11 @@
+apiVersion: v2
+description: Helm chart for deployment Mendix application
+name: mendix-app
+version: 0.2.1
+
+type: application
+
+maintainers:
+  - name: Pongsatorn Siriwong
+    email: pongsatorn@tbn.co.th
+    url: https://tbn.co.th

@@ -40,8 +40,14 @@ env:
   RESOURCE_GROUP: "your-resource-group"
   CLUSTER_NAME: "your-cluster-name"
   DEPLOYMENT_MANIFEST_PATH: "your-deployment-manifest-path"
+  MXAPP_NAME: mendix-poc
+  MPR_FILENAME: App.mpr
+  HELM_APP: mendix-poc
+  JAVA_HOME: /usr/lib/jvm/jdk-21.0.6
+  APP_ID: 6292a095-25c6-41cd-8b0b-1c658a62263a
 
 jobs:
+  # This is build menidx docker images step
   buildImage:
     permissions:
       contents: read
@@ -58,12 +64,43 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: Clone Mendix App from Mendix Git
+        run: |
+          git clone --depth 1 https://${{ secrets.MENDIX_PAT }}@git.api.mendix.com/${{ env.APP_ID }}.git ${{ env.MXAPP_NAME }}
+
+      - name: Generate Version
+        id: version
+        run: |
+          echo "RELEASE_VERSION=1.0.0.$(cd $MXAPP_NAME && git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - name: Build MDA
+        run: |
+          ${{ env.MXBUILD }}/mxbuild --target=package \
+            --java-home=${{ env.JAVA_HOME }} \
+            --model-version=$RELEASE_VERSION \
+            -o ${{ env.MXAPP_NAME }}-${RELEASE_VERSION}.mda \
+            ${{ env.MXAPP_NAME }}/${{ env.MPR_FILENAME }}
+
+      - name: Prepare Docker build context
+        run: |
+          mkdir -p build/project
+          mv ${{ env.MXAPP_NAME }}-${RELEASE_VERSION}.mda build/project/
+          cd build/project
+          unzip *.mda && rm *.mda
 
       # Builds and pushes an image up to your Azure Container Registry
-      - name: Build and push image to ACR
+      - name: Build Docker image
         run: |
-          az acr build --image ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:${{ github.sha }} --registry ${{ env.AZURE_CONTAINER_REGISTRY }} -g ${{ env.RESOURCE_GROUP }} .
+          docker build -t mendix-rootfs:builder -f build/rootfs-builder.dockerfile build
+          docker build -t mendix-rootfs:app -f build/rootfs-app.dockerfile build
+          docker build -t ${{ env.ACR_NAME }}/$HELM_APP:$RELEASE_VERSION -f build/Dockerfile build
 
+      - name: Push Docker image to ACR
+        run: |
+          docker push ${{ env.ACR_NAME }}/$HELM_APP:$RELEASE_VERSION
+
+  # This is deploy mendix app to AKS cluster
   deploy:
     permissions:
       actions: read

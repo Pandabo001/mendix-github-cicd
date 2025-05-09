@@ -1,0 +1,466 @@
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Specify application name
+nameOverride: kpc-ldp-scheduler
+
+# Specify suffix name of service
+serviceNameSuffix: service
+
+# How many pod will be run
+replicaCount: 1
+
+# Extra labels add to deployment, pod, service
+# labels:
+#   environment: dev
+
+# imagePullSecrets:
+#   name: dockersecret
+
+image:
+  repository: 329599614718.dkr.ecr.ap-southeast-1.amazonaws.com/kpc-mendix-ldp-uat
+  tag: 1.0.0.5bcf9d2
+  pullPolicy: Always #IfNotPresent
+
+# Ports of container
+containerPorts:
+  - 8080
+
+environments:
+  # --------- BASIC PARAMETER -------- #
+  - name: ADMIN_PASSWORD # Sensitive data, store in base64 secret
+    secret:
+      name: kpc-ldp-secrets
+      key: MXADMIN_PASSWORD
+
+  # - name: DEBUGGER_PASSWORD # Sensitive data, store in base64 secret
+  #   secret:
+  #     name: kpc-ldp-secrets
+  #     key: DEBUGGER_PASSWORD
+
+  - name: DATABASE_ENDPOINT # Sensitive data, store in base64 secret
+    secret:
+      name: kpc-ldp-secrets
+      key: DATABASE_ENDPOINT
+
+
+  # - name: LICENSE_ID # Sensitive data, store in base64 secret
+  #   secret:
+  #    name: kpc-ldp-secrets
+  #    key: LICENSE_ID
+
+  # - name: LICENSE_KEY # Sensitive data, store in base64 secret
+  #   secret:
+  #    name: kpc-ldp-secrets
+  #    key: LICENSE_KEY
+  
+  # - name: M2EE_PASSWORD
+  #   secret:
+  #     name: kpc-ldp-secrets
+  #     key: M2EE_PASSWORD
+  
+  # https://github.com/mendix/cf-mendix-buildpack#configuring-scheduled-events
+  - name: SCHEDULED_EVENTS
+    value: ALL
+
+   # Index 0 will synchronize data model changes with the database on startup. Scheduled events will also only be executed on instance 0.
+  - name: CF_INSTANCE_INDEX
+    value: 0
+
+  - name: X_FRAME_OPTIONS
+    value: "SAMEORIGIN"
+
+  - name: MEMORY_LIMIT
+    value: 1024M # 2 GB
+
+  - name: S3_ACCESS_KEY_ID
+    secret:
+      name: kpc-ldp-secrets
+      key: S3_ACCESS_KEY_ID
+
+  - name: S3_SECRET_ACCESS_KEY
+    secret:
+      name: kpc-ldp-secrets
+      key: S3_SECRET_ACCESS_KEY
+
+  - name: REVISION
+    value: 1
+
+# ------ S3 Config ------- #
+  # Use S3_Endpoint for Minio or non-AWS Object storage
+  # - name: MXRUNTIME_com_mendix_storage_s3_EndPoint
+  #   value: obs.ap-southeast-2.myhuaweicloud.com
+  - name: S3_BUCKET_NAME
+    value: "kpc-mendix-ldp-file-uat"
+  # - name: S3_PERFORM_DELETES
+  #   value: True
+# ------ S3 Config ------- #
+
+  # # ------- CUSTOM RUNTIME PARAMETER ------ # https://github.com/mendix/cf-mendix-buildpack#configuring-custom-runtime-settings
+  - name: MXRUNTIME_com_mendix_core_StorageService
+    value: "com.mendix.storage.s3"
+  - name: MXRUNTIME_ConnectionPoolingMaxWait
+    value: 10000
+  - name: MXRUNTIME_ConnectionPoolingMaxActive
+    value: 100
+  - name: MXRUNTIME_ConnectionPoolingMinIdle
+    value: 5
+  - name: MXRUNTIME_ConnectionPoolingMaxIdle
+    value: 100     
+  - name: MXRUNTIME_TrackWebServiceUserLastLogin
+    value: False
+  # - name: MXRUNTIME_com_mendix_storage_s3_SocketTimeout
+  #   value: 300000
+  # - name: MXRUNTIME_com_mendix_storage_s3_MaxConnections
+  #   value: 100
+  # - name: MXRUNTIME_PersistentSessions # DEPRECATED
+  #   value: True
+  - name: MXRUNTIME_ApplicationRootUrl
+    value: https://kpc-ldp-uat.kingpower.com/
+
+  - name: MXRUNTIME_com_mendix_core_ScheduledEventsCleanupAge
+    value: "2592000000"
+
+  - name: MXRUNTIME_com_mendix.core_ProcessedTasksCleanupAge
+    value: "2592000000"
+
+  - name: MXRUNTIME_Metrics_Registries
+    value:  |-
+      [
+          {
+            "type": "prometheus",
+            "settings": {
+              "step": "1m"
+            }
+          }
+      ]
+  
+  - name: MXRUNTIME_Metrics_ApplicationTags 
+    value: |- 
+      {
+        "application": "kpc-mendix",
+        "environment": "kpc-mendix",
+        "privatecloud_mendix_com_component": "mendix-app",
+        "privatecloud_mendix_com_app": "kpc-mendix-mx"
+      }
+    
+  - name: MXRUNTIME_EnableKeepAlive
+    value: False
+
+  - name: MXRUNTIME_SessionTimeout
+    value: "900000"
+
+  # # ------- MENDIX CONSTANTS ------- # https://github.com/mendix/cf-mendix-buildpack#configuring-constants
+  # # Change 
+  # # 1. Add MX_ in front of constant name.
+  # # 2. Change From . to _ in between.
+  # # Example:  SFTP.LogLibraryLogging --> MX_SFTP_LogLibraryLogging
+
+  # - name: MX_SMSGateway_LogNode
+  #   value: ""
+
+  # IF CA is required, e.g. connecting to a self-signed SSL link.
+  - name: CERTIFICATE_AUTHORITIES
+    value: |-
+            -----BEGIN CERTIFICATE-----
+            MIIEBjCCAu6gAwIBAgIJAMc0ZzaSUK51MA0GCSqGSIb3DQEBCwUAMIGPMQswCQYD
+            VQQGEwJVUzEQMA4GA1UEBwwHU2VhdHRsZTETMBEGA1UECAwKV2FzaGluZ3RvbjEi
+            MCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1h
+            em9uIFJEUzEgMB4GA1UEAwwXQW1hem9uIFJEUyBSb290IDIwMTkgQ0EwHhcNMTkw
+            ODIyMTcwODUwWhcNMjQwODIyMTcwODUwWjCBjzELMAkGA1UEBhMCVVMxEDAOBgNV
+            BAcMB1NlYXR0bGUxEzARBgNVBAgMCldhc2hpbmd0b24xIjAgBgNVBAoMGUFtYXpv
+            biBXZWIgU2VydmljZXMsIEluYy4xEzARBgNVBAsMCkFtYXpvbiBSRFMxIDAeBgNV
+            BAMMF0FtYXpvbiBSRFMgUm9vdCAyMDE5IENBMIIBIjANBgkqhkiG9w0BAQEFAAOC
+            AQ8AMIIBCgKCAQEArXnF/E6/Qh+ku3hQTSKPMhQQlCpoWvnIthzX6MK3p5a0eXKZ
+            oWIjYcNNG6UwJjp4fUXl6glp53Jobn+tWNX88dNH2n8DVbppSwScVE2LpuL+94vY
+            0EYE/XxN7svKea8YvlrqkUBKyxLxTjh+U/KrGOaHxz9v0l6ZNlDbuaZw3qIWdD/I
+            6aNbGeRUVtpM6P+bWIoxVl/caQylQS6CEYUk+CpVyJSkopwJlzXT07tMoDL5WgX9
+            O08KVgDNz9qP/IGtAcRduRcNioH3E9v981QO1zt/Gpb2f8NqAjUUCUZzOnij6mx9
+            McZ+9cWX88CRzR0vQODWuZscgI08NvM69Fn2SQIDAQABo2MwYTAOBgNVHQ8BAf8E
+            BAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUc19g2LzLA5j0Kxc0LjZa
+            pmD/vB8wHwYDVR0jBBgwFoAUc19g2LzLA5j0Kxc0LjZapmD/vB8wDQYJKoZIhvcN
+            AQELBQADggEBAHAG7WTmyjzPRIM85rVj+fWHsLIvqpw6DObIjMWokpliCeMINZFV
+            ynfgBKsf1ExwbvJNzYFXW6dihnguDG9VMPpi2up/ctQTN8tm9nDKOy08uNZoofMc
+            NUZxKCEkVKZv+IL4oHoeayt8egtv3ujJM6V14AstMQ6SwvwvA93EP/Ug2e4WAXHu
+            cbI1NAbUgVDqp+DRdfvZkgYKryjTWd/0+1fS8X1bBZVWzl7eirNVnHbSH2ZDpNuY
+            0SBd8dj5F6ld3t58ydZbrTHze7JJOd8ijySAp4/kiu9UfZWuTPABzDa/DSdz9Dk/
+            zPW4CXXvhLmE02TA9/HeCw3KEHIwicNuEfw=
+            -----END CERTIFICATE-----
+            -----BEGIN CERTIFICATE-----
+            MIIEDDCCAvSgAwIBAgICY4kwDQYJKoZIhvcNAQELBQAwgY8xCzAJBgNVBAYTAlVT
+            MRAwDgYDVQQHDAdTZWF0dGxlMRMwEQYDVQQIDApXYXNoaW5ndG9uMSIwIAYDVQQK
+            DBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMuMRMwEQYDVQQLDApBbWF6b24gUkRT
+            MSAwHgYDVQQDDBdBbWF6b24gUkRTIFJvb3QgMjAxOSBDQTAeFw0xOTA5MTMyMDEx
+            NDJaFw0yNDA4MjIxNzA4NTBaMIGZMQswCQYDVQQGEwJVUzETMBEGA1UECAwKV2Fz
+            aGluZ3RvbjEQMA4GA1UEBwwHU2VhdHRsZTEiMCAGA1UECgwZQW1hem9uIFdlYiBT
+            ZXJ2aWNlcywgSW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzEqMCgGA1UEAwwhQW1h
+            em9uIFJEUyBhcC1zb3V0aGVhc3QtMSAyMDE5IENBMIIBIjANBgkqhkiG9w0BAQEF
+            AAOCAQ8AMIIBCgKCAQEAr5u9OuLL/OF/fBNUX2kINJLzFl4DnmrhnLuSeSnBPgbb
+            qddjf5EFFJBfv7IYiIWEFPDbDG5hoBwgMup5bZDbas+ZTJTotnnxVJTQ6wlhTmns
+            eHECcg2pqGIKGrxZfbQhlj08/4nNAPvyYCTS0bEcmQ1emuDPyvJBYDDLDU6AbCB5
+            6Z7YKFQPTiCBblvvNzchjLWF9IpkqiTsPHiEt21sAdABxj9ityStV3ja/W9BfgxH
+            wzABSTAQT6FbDwmQMo7dcFOPRX+hewQSic2Rn1XYjmNYzgEHisdUsH7eeXREAcTw
+            61TRvaLH8AiOWBnTEJXPAe6wYfrcSd1pD0MXpoB62wIDAQABo2YwZDAOBgNVHQ8B
+            Af8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUytwMiomQOgX5
+            Ichd+2lDWRUhkikwHwYDVR0jBBgwFoAUc19g2LzLA5j0Kxc0LjZapmD/vB8wDQYJ
+            KoZIhvcNAQELBQADggEBACf6lRDpfCD7BFRqiWM45hqIzffIaysmVfr+Jr+fBTjP
+            uYe/ba1omSrNGG23bOcT9LJ8hkQJ9d+FxUwYyICQNWOy6ejicm4z0C3VhphbTPqj
+            yjpt9nG56IAcV8BcRJh4o/2IfLNzC/dVuYJV8wj7XzwlvjysenwdrJCoLadkTr1h
+            eIdG6Le07sB9IxrGJL9e04afk37h7c8ESGSE4E+oS4JQEi3ATq8ne1B9DQ9SasXi
+            IRmhNAaISDzOPdyLXi9N9V9Lwe/DHcja7hgLGYx3UqfjhLhOKwp8HtoZORixAmOI
+            HfILgNmwyugAbuZoCazSKKBhQ0wgO0WZ66ZKTMG8Oho=
+            -----END CERTIFICATE-----
+            -----BEGIN CERTIFICATE-----
+            MIIGCTCCA/GgAwIBAgIRAIO6ldra1KZvNWJ0TA1ihXEwDQYJKoZIhvcNAQEMBQAw
+            gZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ
+            bmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws
+            QW1hem9uIFJEUyBhcC1zb3V0aGVhc3QtMSBSb290IENBIFJTQTQwOTYgRzExEDAO
+            BgNVBAcMB1NlYXR0bGUwIBcNMjEwNTIxMjE0NTA1WhgPMjEyMTA1MjEyMjQ1MDVa
+            MIGcMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywg
+            SW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExNTAzBgNVBAMM
+            LEFtYXpvbiBSRFMgYXAtc291dGhlYXN0LTEgUm9vdCBDQSBSU0E0MDk2IEcxMRAw
+            DgYDVQQHDAdTZWF0dGxlMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA
+            sDN52Si9pFSyZ1ruh3xAN0nVqEs960o2IK5CPu/ZfshFmzAwnx/MM8EHt/jMeZtj
+            SM58LADAsNDL01ELpFZATjgZQ6xNAyXRXE7RiTRUvNkK7O3o2qAGbLnJq/UqF7Sw
+            LRnB8V6hYOv+2EjVnohtGCn9SUFGZtYDjWXsLd4ML4Zpxv0a5LK7oEC7AHzbUR7R
+            jsjkrXqSv7GE7bvhSOhMkmgxgj1F3J0b0jdQdtyyj109aO0ATUmIvf+Bzadg5AI2
+            A9UA+TUcGeebhpHu8AP1Hf56XIlzPpaQv3ZJ4vzoLaVNUC7XKzAl1dlvCl7Klg/C
+            84qmbD/tjZ6GHtzpLKgg7kQEV7mRoXq8X4wDX2AFPPQl2fv+Kbe+JODqm5ZjGegm
+            uskABBi8IFv1hYx9jEulZPxC6uD/09W2+niFm3pirnlWS83BwVDTUBzF+CooUIMT
+            jhWkIIZGDDgMJTzouBHfoSJtS1KpUZi99m2WyVs21MNKHeWAbs+zmI6TO5iiMC+T
+            uB8spaOiHFO1573Fmeer4sy3YA6qVoqVl6jjTQqOdy3frAMbCkwH22/crV8YA+08
+            hLeHXrMK+6XUvU+EtHAM3VzcrLbuYJUI2XJbzTj5g0Eb8I8JWsHvWHR5K7Z7gceR
+            78AzxQmoGEfV6KABNWKsgoCQnfb1BidDJIe3BsI0A6UCAwEAAaNCMEAwDwYDVR0T
+            AQH/BAUwAwEB/zAdBgNVHQ4EFgQUABp0MlB14MSHgAcuNSOhs3MOlUcwDgYDVR0P
+            AQH/BAQDAgGGMA0GCSqGSIb3DQEBDAUAA4ICAQCv4CIOBSQi/QR9NxdRgVAG/pAh
+            tFJhV7OWb/wqwsNKFDtg6tTxwaahdCfWpGWId15OUe7G9LoPiKiwM9C92n0ZeHRz
+            4ewbrQVo7Eu1JI1wf0rnZJISL72hVYKmlvaWaacHhWxvsbKLrB7vt6Cknxa+S993
+            Kf8i2Psw8j5886gaxhiUtzMTBwoDWak8ZaK7m3Y6C6hXQk08+3pnIornVSFJ9dlS
+            PAqt5UPwWmrEfF+0uIDORlT+cvrAwgSp7nUF1q8iasledycZ/BxFgQqzNwnkBDwQ
+            Z/aM52ArGsTzfMhkZRz9HIEhz1/0mJw8gZtDVQroD8778h8zsx2SrIz7eWQ6uWsD
+            QEeSWXpcheiUtEfzkDImjr2DLbwbA23c9LoexUD10nwohhoiQQg77LmvBVxeu7WU
+            E63JqaYUlOLOzEmNJp85zekIgR8UTkO7Gc+5BD7P4noYscI7pPOL5rP7YLg15ZFi
+            ega+G53NTckRXz4metsd8XFWloDjZJJq4FfD60VuxgXzoMNT9wpFTNSH42PR2s9L
+            I1vcl3w8yNccs9se2utM2nLsItZ3J0m/+QSRiw9hbrTYTcM9sXki0DtH2kyIOwYf
+            lOrGJDiYOIrXSQK36H0gQ+8omlrUTvUj4msvkXuQjlfgx6sgp2duOAfnGxE7uHnc
+            UhnJzzoe6M+LfGHkVQ==
+            -----END CERTIFICATE-----
+            -----BEGIN CERTIFICATE-----
+            MIIECTCCAvGgAwIBAgIRALZLcqCVIJ25maDPE3sbPCIwDQYJKoZIhvcNAQELBQAw
+            gZwxCzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJ
+            bmMuMRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE1MDMGA1UEAwws
+            QW1hem9uIFJEUyBhcC1zb3V0aGVhc3QtMSBSb290IENBIFJTQTIwNDggRzExEDAO
+            BgNVBAcMB1NlYXR0bGUwIBcNMjEwNTIxMjEzOTM5WhgPMjA2MTA1MjEyMjM5Mzla
+            MIGcMQswCQYDVQQGEwJVUzEiMCAGA1UECgwZQW1hem9uIFdlYiBTZXJ2aWNlcywg
+            SW5jLjETMBEGA1UECwwKQW1hem9uIFJEUzELMAkGA1UECAwCV0ExNTAzBgNVBAMM
+            LEFtYXpvbiBSRFMgYXAtc291dGhlYXN0LTEgUm9vdCBDQSBSU0EyMDQ4IEcxMRAw
+            DgYDVQQHDAdTZWF0dGxlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA
+            ypKc+6FfGx6Gl6fQ78WYS29QoKgQiur58oxR3zltWeg5fqh9Z85K5S3UbRSTqWWu
+            Xcfnkz0/FS07qHX+nWAGU27JiQb4YYqhjZNOAq8q0+ptFHJ6V7lyOqXBq5xOzO8f
+            +0DlbJSsy7GEtJp7d7QCM3M5KVY9dENVZUKeJwa8PC5StvwPx4jcLeZRJC2rAVDG
+            SW7NAInbATvr9ssSh03JqjXb+HDyywiqoQ7EVLtmtXWimX+0b3/2vhqcH5jgcKC9
+            IGFydrjPbv4kwMrKnm6XlPZ9L0/3FMzanXPGd64LQVy51SI4d5Xymn0Mw2kMX8s6
+            Nf05OsWcDzJ1n6/Q1qHSxQIDAQABo0IwQDAPBgNVHRMBAf8EBTADAQH/MB0GA1Ud
+            DgQWBBRmaIc8eNwGP7i6P7AJrNQuK6OpFzAOBgNVHQ8BAf8EBAMCAYYwDQYJKoZI
+            hvcNAQELBQADggEBAIBeHfGwz3S2zwIUIpqEEI5/sMySDeS+3nJR+woWAHeO0C8i
+            BJdDh+kzzkP0JkWpr/4NWz84/IdYo1lqASd1Kopz9aT1+iROXaWr43CtbzjXb7/X
+            Zv7eZZFC8/lS5SROq42pPWl4ekbR0w8XGQElmHYcWS41LBfKeHCUwv83ATF0XQ6I
+            4t+9YSqZHzj4vvedrvcRInzmwWJaal9s7Z6GuwTGmnMsN3LkhZ+/GD6oW3pU/Pyh
+            EtWqffjsLhfcdCs3gG8x9BbkcJPH5aPAVkPn4wc8wuXg6xxb9YGsQuY930GWTYRf
+            schbgjsuqznW4HHakq4WNhs1UdTSTKkRdZz7FUQ=
+            -----END CERTIFICATE-----
+            -----BEGIN CERTIFICATE-----
+            MIICuDCCAj6gAwIBAgIRAOocLeZWjYkG/EbHmscuy8gwCgYIKoZIzj0EAwMwgZsx
+            CzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu
+            MRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE0MDIGA1UEAwwrQW1h
+            em9uIFJEUyBhcC1zb3V0aGVhc3QtMSBSb290IENBIEVDQzM4NCBHMTEQMA4GA1UE
+            BwwHU2VhdHRsZTAgFw0yMTA1MjEyMTUwMDFaGA8yMTIxMDUyMTIyNTAwMVowgZsx
+            CzAJBgNVBAYTAlVTMSIwIAYDVQQKDBlBbWF6b24gV2ViIFNlcnZpY2VzLCBJbmMu
+            MRMwEQYDVQQLDApBbWF6b24gUkRTMQswCQYDVQQIDAJXQTE0MDIGA1UEAwwrQW1h
+            em9uIFJEUyBhcC1zb3V0aGVhc3QtMSBSb290IENBIEVDQzM4NCBHMTEQMA4GA1UE
+            BwwHU2VhdHRsZTB2MBAGByqGSM49AgEGBSuBBAAiA2IABCEr3jq1KtRncnZfK5cq
+            btY0nW6ZG3FMbh7XwBIR6Ca0f8llGZ4vJEC1pXgiM/4Dh045B9ZIzNrR54rYOIfa
+            2NcYZ7mk06DjIQML64hbAxbQzOAuNzLPx268MrlL2uW2XaNCMEAwDwYDVR0TAQH/
+            BAUwAwEB/zAdBgNVHQ4EFgQUln75pChychwN4RfHl+tOinMrfVowDgYDVR0PAQH/
+            BAQDAgGGMAoGCCqGSM49BAMDA2gAMGUCMGiyPINRU1mwZ4Crw01vpuPvxZxb2IOr
+            yX3RNlOIu4We1H+5dQk5tIvH8KGYFbWEpAIxAO9NZ6/j9osMhLgZ0yj0WVjb+uZx
+            YlZR9fyFisY/jNfX7QhSk+nrc3SFLRUNtpXrng==
+            -----END CERTIFICATE-----
+
+  
+  # ----- S3 for Public Image ----- #
+
+  ## Example
+  # - name: Secret
+  #   secret:
+  #     name: python-secret
+  #     key: python-one
+  # - name: Configmaps
+  #   configmap:
+  #     name: python-configmap
+  #     key: python-one
+  # - name: NODE_ENV
+  #   value: deployment
+#command:
+#  - sh
+#  - entrypoint.sh
+
+# Static DNS additional entries in /etc/hosts
+hostAliases: {}
+  ## Example
+  # - ip: 127.0.0.1
+  #   hostnames:
+  #     - sample1.opsta.io
+  #     - sample2.opsta.io
+
+healthCheck: 
+  ## Example
+  ## Select one of them:
+  httpGet:
+    path: /
+    port: 8080
+  # tcpSocket:
+  #   port: 8080
+  # exec:
+  #   command:
+  #     - cat
+  #     - /tmp/healthy
+
+annotations: 
+  ## Example
+  # service.beta.kubernetes.io/aws-load-balancer-ssl-cert: ""
+  # service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+
+#  type: LoadBalancer
+#  ports:
+#    - name: ktc-los-http
+#      port: 80
+#      targetPort: 8080
+#      nodePort: 30001
+#      protocol: TCP
+#  clusterIP: 100.64.0.1
+#status:
+#  loadBalancer:
+#    ingress:
+#    - ip: 100.68.159.35
+
+  ## Example
+  ## Scenario #1
+  # type: ClusterIP
+  # ports:
+  #   - name: example-http
+  #     port: 80            # External port <= Internet
+  #     targetPort: 9000    # Internal port => POD
+  #     protocol: TCP
+  #   - name: example-https
+  #     port: 443
+  #     targetPort: 9000
+  #     protocol: TCP
+  #
+  ## Scenario #2
+  # type: NodePort
+  # ports:
+  #   - name: example-http
+  #     nodePort: 30000     # External port <= Internet
+  #     port: 8000          # Internal port => POD
+  #     protocol: TCP
+
+## Node labels for pod assignment
+## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+##
+nodeSelector: {}
+  # env: prod
+  
+resources:
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  limits:
+  #  cpu: 500m
+   memory: 1024Mi # 2 GB
+  requests:
+  #  cpu: 500m
+   memory: 1024Mi
+
+# Used when have HealthCheck
+# Configure extra options for liveness and readiness probes
+# ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/#configure-probes)
+livenessProbe:
+  initialDelaySeconds: 120
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 6
+  successThreshold: 1
+readinessProbe:
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+  successThreshold: 1
+
+# volumes: 
+#     - name: rds-ca-certs
+#       configMap:
+#         # Provide the name of the ConfigMap containing the files you want
+#         # to add to the container
+#         name: rds-ca-configmap
+
+# volumeMounts:
+#   - name: rds-ca-certs
+#     mountPath: /opt/mendix/build/.postgresql
+#     readOnly: true
+  # - name: ssl-certs
+  #   mountPath: /etc/ssl/certs
+  #   readOnly: true
+
+
+# volumes: {}
+  # Example
+  # volumes:
+  #   - name: ssl-certs
+  #     hostPath:
+  #       path: "/etc/ssl/certs/ca-certificates.crt"
+  #
+  # volumeClaimTemplates:
+  #   - name: example-claim
+  #     storageClass: default
+  #     accessModes: RWO
+  #     resources:
+  #       requests:
+  #         storage: 10G
+
+
+### --- Mendix Scheduler Pod DO NOT REQUIRE THESE CONFIG --- ###
+# Horizontal Pod Autoscaler
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+# ingress:
+#   enabled: false
+#   className: ""
+#   annotations: {}
+#     # kubernetes.io/ingress.class: nginx
+#     # kubernetes.io/tls-acme: "true"
+#   hosts:
+#     - host: chart-example.local
+#       paths:
+#         - path: /
+#           pathType: ImplementationSpecific
+#   tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local

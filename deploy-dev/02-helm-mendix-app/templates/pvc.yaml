@@ -1,0 +1,19 @@
+{{- range .Values.volumes }}
+{{- if .persistentVolumeClaim }}
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: {{ .persistentVolumeClaim.claimName }}
+  annotations:
+    volume.beta.kubernetes.io/storage-class: {{ .persistentVolumeClaim.storageClass }}
+spec:
+  accessModes:
+  {{- range .persistentVolumeClaim.accessModes }}
+    - {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .persistentVolumeClaim.storageSize }}
+{{- end }}
+{{- end }}

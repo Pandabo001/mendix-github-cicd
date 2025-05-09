@@ -1,0 +1,248 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "name" . }}
+  labels:
+    app: {{ template "name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    namespace: {{ .Release.Namespace }}
+    revision: {{ .Release.Revision | quote }}
+    {{- range $key, $val := .Values.labels }}
+    {{ $key }}: {{ $val | quote }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "name" . }}
+      chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+      release: {{ .Release.Name }}
+      namespace: {{ .Release.Namespace }}
+      {{- range $key, $val := .Values.labels }}
+      {{ $key }}: {{ $val | quote }}
+      {{- end }}
+  {{- if .Values.replicaCount }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 100%
+      maxUnavailable: 0
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/_mxadmin/prometheus"
+        privatecloud.mendix.com/component: mendix-app
+        privatecloud.mendix.com/app: secap-carsub-mx
+      labels:
+        app: {{ template "name" . }}
+        chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+        release: {{ .Release.Name }}
+        namespace: {{ .Release.Namespace }}
+        revision: {{ .Release.Revision | quote }}
+        {{- range $key, $val := .Values.labels }}
+        {{ $key }}: {{ $val | quote }}
+        {{- end }}
+    spec:
+      terminationGracePeriodSeconds: 10
+      {{- if .Values.podAntiAffinity }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                  matchExpressions:
+                    - key: "app"
+                      operator: In
+                      values:
+                      - {{ template "name" . }}
+              topologyKey: "kubernetes.io/hostname"
+      {{- end }}
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecrets.name }}
+      {{- end }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+        {{- range $key, $val := .Values.nodeSelector }}
+        {{ $key }}: {{ $val | quote }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.hostAliases }}
+      hostAliases:
+        {{- range .Values.hostAliases }}
+        - ip: {{ .ip }}
+          hostnames:
+            {{- range .hostnames }}
+            - {{ . }}
+            {{- end }}
+        {{- end }}
+      {{- end }}
+      # # If we have mount volume, ensure everything in there is accessible (give all permission to all objects) before mount to mendix
+      # {{- if .Values.volumeMounts }}
+      # initContainers:
+      #   {{- range .Values.volumeMounts }}
+      #   - name: busybox-data-permission-fix-{{ .name }}
+      #     image: mxregistry.ktc.co.th/busybox:1.31.1
+      #     command: ["/bin/chmod","-R","777", "/data"]
+      #     volumeMounts:
+      #       - name: {{ .name }}
+      #         mountPath: /data
+      #         {{- if .readOnly }}
+      #         readOnly: {{ .readOnly }}
+      #         {{- end }}
+      #   {{- end }}
+      # {{- end }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: {{ template "name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          securityContext:
+            allowPrivilegeEscalation: false
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.workingDir }}
+          workingDir: {{ .Values.workingDir }}
+          {{- end }}
+          {{- if .Values.command }}
+          command:
+            {{- range .Values.command }}
+            - {{ . }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.environments }}
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            {{- range .Values.environments }}
+            - name: {{ .name }}
+              {{- if .secret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secret.name }}
+                  key: {{ .secret.key }}
+              {{- else if .configmap }}
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .configmap.name }}
+                  key: {{ .configmap.key }}
+              {{- else }}
+              value: {{ .value | quote }}
+              {{- end }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.containerPorts }}
+          ports:
+            {{- range .Values.containerPorts }}
+            - containerPort: {{ . }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.resources }}
+          resources:
+            {{- if .Values.resources.requests }}
+            requests:
+              {{- if .Values.resources.requests.cpu }}
+              cpu: "{{ .Values.resources.requests.cpu }}"
+              {{- end }}
+              {{- if .Values.resources.requests.memory }}
+              memory: "{{ .Values.resources.requests.memory }}"
+              {{- end }}
+            {{- end }}
+            {{- if .Values.resources.limits }}
+            limits:
+              {{- if .Values.resources.limits.cpu }}
+              cpu: "{{ .Values.resources.limits.cpu }}"
+              {{- end }}
+              {{- if .Values.resources.limits.memory }}
+              memory: "{{ .Values.resources.limits.memory }}"
+              {{- end }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.volumeMounts }}
+          volumeMounts:
+            {{- range .Values.volumeMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              {{- if .readOnly }}
+              readOnly: {{ .readOnly }}
+              {{- end }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.healthCheck }}
+          readinessProbe:
+            {{- if .Values.healthCheck.exec }}
+            exec:
+              command:
+                {{- range .Values.healthCheck.exec.command }}
+                - {{ . }}
+                {{- end }}
+            {{- else if .Values.healthCheck.tcpSocket }}
+            tcpSocket:
+              port: {{ .Values.healthCheck.tcpSocket.port }}
+            {{- else }}
+            httpGet:
+              {{- with .Values.healthCheck.httpGet }}
+              {{ range $key, $val := . -}}
+              {{ $key }}: {{ $val }}
+              {{ end }} 
+              {{- end }}
+            {{- end }}
+            {{- with .Values.readinessProbe }}
+            {{ range $key, $val := . -}}
+            {{ $key }}: {{ $val }}
+            {{ end }} 
+            {{- end }}
+          livenessProbe:
+            {{- if .Values.healthCheck.exec }}
+            exec:
+              command:
+                {{- range .Values.healthCheck.exec.command }}
+                - {{ . }}
+                {{- end }}
+            {{- else if .Values.healthCheck.tcpSocket }}
+            tcpSocket:
+              port: {{ .Values.healthCheck.tcpSocket.port }}
+            {{- else }}
+            httpGet:
+              {{- with .Values.healthCheck.httpGet }}
+              {{ range $key, $val := . -}}
+              {{ $key }}: {{ $val }}
+              {{ end }} 
+              {{- end }}
+            {{- end }}
+            {{- with .Values.livenessProbe }}
+            {{ range $key, $val := . -}}
+            {{ $key }}: {{ $val }}
+            {{ end }}  
+            {{- end }}
+          {{- end }}
+  {{- if .Values.volumes }}
+      volumes:
+        {{- range .Values.volumes }}
+        - name: {{ .name }}
+          {{- if .hostPath }}
+          hostPath:
+            path: {{ .hostPath.path }}
+          {{- else if .persistentVolumeClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .persistentVolumeClaim.claimName }}
+          {{- else if .configMap }}
+          configMap:
+            name: {{ .configMap.name }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- end }}
+  {{- end }}
